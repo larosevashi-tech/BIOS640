@@ -19,6 +19,7 @@ knitr::opts_chunk$set(
 )
 
 pacman::p_load(
+  here,
   dplyr,
   readr,
   ggplot2,
@@ -27,7 +28,7 @@ pacman::p_load(
 )
 
 # Folder for every plot exported with ggsave()
-fig_dir <- "figures"
+fig_dir <- here("figures")
 dir.create(fig_dir, showWarnings = FALSE)
 
 # Shared look for every new figure: a complete theme first, then targeted
@@ -45,10 +46,10 @@ theme_bars <- theme_report +
 ```
 
 ```{r load-data}
-nhanes <- read_csv("cleaned_NHANES.csv", show_col_types = FALSE) |>
+nhanes <- read_csv(here("data", "clean", "cleaned_NHANES.csv"), show_col_types = FALSE) |>
   select(-1) # drop the unnamed row index written by write.csv()
 
-diet <- read_csv("diet.csv", show_col_types = FALSE)
+diet <- read_csv(here("data", "clean", "diet.csv"), show_col_types = FALSE)
 ```
 
 # Exercise 1: Reproducing and arranging ggplot2 figures
