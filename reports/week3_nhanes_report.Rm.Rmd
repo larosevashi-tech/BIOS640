@@ -3,14 +3,19 @@ title: "BIOS 640: Assignment Week 3"
 author: "Urvashi La Rose"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
-  pdf_document:
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    code_folding: hide
     fig_caption: true
-    number_sections: false
 ---
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  echo = FALSE, # code stays in the Rmd but is hidden in the PDF
+  echo = TRUE, # code is included and folded behind Show buttons in the HTML
   message = FALSE,
   warning = FALSE,
   fig.align = "center",
@@ -24,7 +29,8 @@ pacman::p_load(
   readr,
   ggplot2,
   cowplot,
-  ggpubr
+  ggpubr,
+  DT
 )
 
 # Folder for every plot exported with ggsave()
@@ -54,8 +60,6 @@ diet <- read_csv(here("data", "clean", "diet.csv"), show_col_types = FALSE)
 
 # Exercise 1: Reproducing and arranging ggplot2 figures
 
-## Recreating the two figures
-
 The two target figures only show adults. The first age bin (17.5 to 22.5 years) holds about 260 people per gender, which matches the data exactly when only participants older than 20 are kept, so ages 21 and 22 fall in that bin. I therefore restrict both figures to participants aged over 20.
 
 The raw NHANES codes are replaced by the cleaned labels. Gender code 1 is `"Male"` and code 2 is `"Female"`, so I set that factor order to keep the original colours. Ethnicity is ordered by the original `RIDRETH3` codes (1 Mexican, 2 Other Hispanic, 3 White, 4 Black, 6 Asian, 7 Other).
@@ -70,6 +74,10 @@ nhanes_adults <- nhanes |>
     ethnicity_2 = factor(ethnicity_2, levels = eth_levels)
   )
 ```
+
+## Figures {.tabset}
+
+### Individual figures
 
 ```{r ex1-figures, fig.height = 3.2}
 p_age_hist <- ggplot(nhanes_adults, aes(x = age, fill = gender)) +
@@ -92,7 +100,7 @@ p_age_hist
 p_eth_bar
 ```
 
-## Combining the figures
+### Combined figures
 
 ```{r ex1-cowplot, fig.height = 6.5, fig.cap = "Figures combined with plot\\_grid() from cowplot."}
 combined_grid <- plot_grid(
@@ -126,7 +134,7 @@ ggarrange(
   )
 ```
 
-## Comparing `plot_grid()` and `ggarrange()`
+## `plot_grid()` vs `ggarrange()`
 
 Both functions stack the plots in a single column and add panel labels. Each needs its own way to add an overall title, a `draw_label()` row for `plot_grid()` and `annotate_figure()` for `ggarrange()`. With `align = "v"` they also line up the plotting areas, so the two x axes start at the same position even though the y axis labels have different widths.
 
@@ -137,6 +145,18 @@ For these two plots `ggarrange()` gives the better layout. Both panels map gende
 \newpage
 
 # Exercise 2: Visualizing key characteristics
+
+The table below shows the full cleaned NHANES dataset. Use the search box to look up any value, or the filters above each column to narrow the rows.
+
+```{r ex2-datatable}
+datatable(
+  nhanes,
+  rownames = FALSE,
+  filter = "top",
+  caption = "Cleaned NHANES dataset",
+  options = list(pageLength = 10, scrollX = TRUE)
+)
+```
 
 ```{r ex2-missing}
 nhanes |>
@@ -357,7 +377,7 @@ ggsave(file.path(fig_dir, "ex3_diet_change_from_baseline.png"), p_diet,
        width = 8, height = 5, dpi = 300)
 ```
 
-```{r ex3-summary, echo = FALSE}
+```{r ex3-summary, echo = TRUE}
 loss_summary <- diet_change |>
   filter(Week == max(Week), outcome == "Lost weight") |>
   summarise(mean = mean(change_kg), min = min(change_kg), max = max(change_kg))
@@ -400,7 +420,7 @@ n_full <- nrow(nhanes)
 n_bp <- nrow(nhanes_bp)
 ```
 
-```{r ex4-palettes, include = FALSE}
+```{r ex4-palettes, include = TRUE}
 # SBP categories are ordered by severity, so a sequential ColorBrewer palette
 # (light to dark) is used. It avoids the red and green pair that is hard to
 # tell apart with common colour vision deficiencies.
@@ -481,7 +501,7 @@ ggsave(file.path(fig_dir, "ex4_sbp_by_age_gender.png"), p_bp_facet,
        width = 8, height = 5, dpi = 300)
 ```
 
-```{r ex4-rates, echo = FALSE}
+```{r ex4-rates, echo = TRUE}
 rates <- nhanes_bp |>
   group_by(gender, age_cat) |>
   summarise(
