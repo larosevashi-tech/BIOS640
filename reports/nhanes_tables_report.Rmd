@@ -1,0 +1,194 @@
+---
+title: "Describing the NHANES 2013 to 2018 Sample"
+subtitle: "BIOS 640: Assignment Week 4, Exercise 4"
+author: "Urvashi La Rose"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    number_sections: false
+bibliography:
+  - ../references/references.bib
+  - ../references/packages.bib
+link-citations: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+pacman::p_load(
+  here,
+  dplyr,
+  tidyr,
+  knitr,
+  kableExtra
+)
+
+dir.create(here("references"), showWarnings = FALSE)
+
+# Write BibTeX entries for the software used, so they can be cited below
+knitr::write_bib(
+  c("base", "rmarkdown", "knitr", "kableExtra", "dplyr"),
+  file = here("references", "packages.bib")
+)
+```
+
+```{r load-data}
+nhanes <- readRDS(here("data", "clean", "nhanes_bp_demographics_clean.rds")) |>
+  mutate(
+    wave_id = as.character(wave_id),
+    # Average of up to four readings; rowMeans() returns NaN when all
+    # four are missing, so those become NA
+    avg_sbp = rowMeans(across(c(sbp_1, sbp_2, sbp_3, sbp_4)), na.rm = TRUE),
+    avg_sbp = if_else(is.nan(avg_sbp), NA_real_, avg_sbp)
+  )
+
+wave_levels <- sort(unique(nhanes$wave_id))
+
+# Stack a copy of the data labelled "All waves" so every summary also
+# gets an overall column without separate code
+nhanes_all <- bind_rows(nhanes, mutate(nhanes, wave_id = "All waves")) |>
+  mutate(wave_id = factor(wave_id, levels = c(wave_levels, "All waves")))
+
+# Formats a count with its percentage, e.g. "4,892 (49.3%)"
+n_pct <- function(n, total) {
+  sprintf("%s (%.1f%%)", format(n, big.mark = ",", trim = TRUE), 100 * n / total)
+}
+```
+
+```{r text-values}
+# Values quoted in the narrative, computed here so the text stays accurate
+wave_summary <- nhanes |>
+  group_by(wave_id) |>
+  summarise(
+    n = n(),
+    pct_male = 100 * mean(gender == "Male"),
+    n_sbp = sum(!is.na(avg_sbp)),
+    mean_sbp = mean(avg_sbp, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+eth_overall <- nhanes |>
+  count(race_ethnicity_6cat, sort = TRUE) |>
+  mutate(pct = 100 * n / sum(n))
+
+fmt <- function(x) format(x, big.mark = ",")
+```
+
+# Introduction
+
+The National Health and Nutrition Examination Survey (NHANES) is run by the National Center for Health Statistics to assess the health and nutritional status of adults and children in the United States [@nhanes]. Each two year cycle, or wave, combines a household interview with a physical examination, where measurements such as blood pressure are taken.
+
+This report describes `r fmt(nrow(nhanes))` participants from the `r length(wave_levels)` waves covering 2013 to 2018. The data were cleaned in an earlier assignment, where examinations flagged as incomplete had their blood pressure readings set to missing.
+
+NHANES uses some labels that are now considered outdated. The variable called gender records biological sex, and the ethnicity variable describes self-reported race. The original labels are kept here to match the source data.
+
+# Who is in the sample?
+
+Table \ref{tab:sample} shows how many people took part in each wave, along with the number and share of males and of each ethnic group. Percentages use every participant in the wave as the denominator.
+
+```{r sample-table}
+sample_size <- nhanes_all |>
+  group_by(wave_id) |>
+  summarise(value = format(n(), big.mark = ","), .groups = "drop") |>
+  mutate(characteristic = "Participants, n")
+
+males <- nhanes_all |>
+  group_by(wave_id) |>
+  summarise(value = n_pct(sum(gender == "Male"), n()), .groups = "drop") |>
+  mutate(characteristic = "Male, n (%)")
+
+ethnicity <- nhanes_all |>
+  count(wave_id, race_ethnicity_6cat) |>
+  group_by(wave_id) |>
+  mutate(value = n_pct(n, sum(n))) |>
+  ungroup() |>
+  transmute(wave_id, characteristic = as.character(race_ethnicity_6cat), value)
+
+sample_table <- bind_rows(sample_size, males, ethnicity) |>
+  select(characteristic, wave_id, value) |>
+  pivot_wider(names_from = wave_id, values_from = value)
+
+n_eth <- nrow(sample_table) - 2
+
+sample_table |>
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    label = "sample",
+    col.names = c("Characteristic", wave_levels, "All waves"),
+    align = c("l", rep("r", length(wave_levels) + 1)),
+    caption = "Sample size and demographic profile of NHANES participants by survey wave"
+  ) |>
+  add_header_above(c(" " = 1, "Survey wave" = length(wave_levels), " " = 1),
+                   bold = TRUE) |>
+  pack_rows("Ethnicity, n (%)", 3, 2 + n_eth) |>
+  row_spec(0, bold = TRUE) |>
+  row_spec(1, bold = TRUE) |>
+  column_spec(length(wave_levels) + 2, bold = TRUE) |>
+  kable_styling(latex_options = "hold_position", font_size = 9) |>
+  footnote(
+    general = paste(
+      "Percentages are calculated within each wave.",
+      "Gender records biological sex, following the original NHANES label."
+    ),
+    threeparttable = TRUE
+  )
+```
+
+The three waves are similar in size, ranging from `r fmt(min(wave_summary$n))` to `r fmt(max(wave_summary$n))` participants. Males make up close to half of every wave, between `r round(min(wave_summary$pct_male), 1)`% and `r round(max(wave_summary$pct_male), 1)`%.
+
+The ethnic make up is also stable from wave to wave. `r eth_overall$race_ethnicity_6cat[1]` participants form the largest group overall at `r round(eth_overall$pct[1], 1)`%, and the remaining groups keep a similar share in each cycle. This consistency means differences between waves later on are unlikely to come from changes in who was sampled.
+
+# Systolic blood pressure
+
+Average systolic blood pressure (SBP) is the mean of up to four readings per participant. People with no valid reading, mainly young children and those who were interviewed but never examined, are left out, so Table \ref{tab:sbp} is based on `r fmt(sum(wave_summary$n_sbp))` participants.
+
+```{r sbp-table}
+sbp_table <- nhanes_all |>
+  filter(!is.na(avg_sbp)) |>
+  group_by(wave_id) |>
+  summarise(
+    n = n(),
+    minimum = min(avg_sbp),
+    maximum = max(avg_sbp),
+    median = median(avg_sbp),
+    mean = mean(avg_sbp),
+    sd = sd(avg_sbp),
+    .groups = "drop"
+  )
+
+sbp_table |>
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    label = "sbp",
+    digits = 1,
+    format.args = list(big.mark = ","),
+    col.names = c("Wave", "Participants", "Minimum", "Maximum",
+                  "Median", "Mean", "SD"),
+    align = c("l", rep("r", 6)),
+    caption = "Summary statistics of average systolic blood pressure by survey wave"
+  ) |>
+  add_header_above(c(" " = 2, "Average systolic blood pressure (mm Hg)" = 5),
+                   bold = TRUE) |>
+  row_spec(0, bold = TRUE) |>
+  row_spec(nrow(sbp_table) - 1, hline_after = TRUE) |>
+  row_spec(nrow(sbp_table), bold = TRUE) |>
+  column_spec(6, bold = TRUE) |>
+  kable_styling(latex_options = "hold_position", font_size = 9) |>
+  footnote(
+    general = paste(
+      "Participants are those with at least one valid SBP reading.",
+      "SD is the standard deviation."
+    ),
+    threeparttable = TRUE
+  )
+```
+
+Mean average SBP stays within a narrow band across the three waves, from `r round(min(wave_summary$mean_sbp), 1)` mm Hg in `r wave_summary$wave_id[which.min(wave_summary$mean_sbp)]` to `r round(max(wave_summary$mean_sbp), 1)` mm Hg in `r wave_summary$wave_id[which.max(wave_summary$mean_sbp)]`. The wide gap between the minimum and maximum in every wave reflects a sample that spans children through older adults.
+
+Taken together, the waves are comparable in size, sex balance, ethnic make up and blood pressure. That makes it reasonable to pool them for analysis, as done in the "All waves" columns.
+
+Tables were produced in R [@R-base] with R Markdown [@R-rmarkdown], knitr [@R-knitr], dplyr [@R-dplyr] and kableExtra [@R-kableExtra].
+
+# References
