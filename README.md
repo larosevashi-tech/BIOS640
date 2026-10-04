@@ -23,6 +23,7 @@ bios640-week4/
 ├── reports/
 │   ├── week2_nhanes_cleaning.Rmd
 │   ├── week2_nhanes_cleaning.pdf
+│   ├── week3_nhanes_report.html
 │   ├── week3_nhanes_report.Rmd
 │   ├── week3_nhanes_report.pdf
 

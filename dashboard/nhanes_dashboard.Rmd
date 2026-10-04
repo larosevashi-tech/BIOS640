@@ -1,0 +1,89 @@
+---
+title: "NHANES Dashboard"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+pacman::p_load(
+  here,
+  dplyr,
+  readr,
+  flexdashboard
+)
+
+nhanes <- read_csv(here("data", "clean", "cleaned_NHANES.csv"),
+                   show_col_types = FALSE) |>
+  select(-1) # drop the unnamed row index written by write.csv()
+```
+
+```{r summaries, include = FALSE}
+# Average systolic blood pressure over up to four readings, built the same
+# way as in Assignment 3, Exercise 4. rowMeans() returns NaN when all four
+# readings are missing, so those become NA.
+nhanes <- nhanes |>
+  mutate(
+    avg_sbp = rowMeans(across(c(systolic_bp_1, systolic_bp_2,
+                                systolic_bp_3, systolic_bp_4)),
+                       na.rm = TRUE),
+    avg_sbp = if_else(is.nan(avg_sbp), NA_real_, avg_sbp)
+  )
+
+# Share of all participants aged 21 or older
+pct_21_plus <- round(100 * mean(nhanes$age >= 21, na.rm = TRUE), 1)
+
+# Share of participants with an SBP reading whose average is above 120 mm Hg
+pct_sbp_above_120 <- round(100 * mean(nhanes$avg_sbp > 120, na.rm = TRUE), 1)
+```
+
+```{css}
+/* Scale the saved PNG to fill its panel while keeping its proportions */
+.chart-stage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+```
+
+Row {data-height=650}
+-----------------------------------------------------------------------
+
+### Age distribution of NHANES participants
+
+```{r age-plot}
+# Saved from Assignment 3, Exercise 2 with ggsave()
+knitr::include_graphics(here("figures", "ex2_age_histogram.png"))
+```
+
+Row {data-height=350}
+-----------------------------------------------------------------------
+
+### Participants aged 21 or older
+
+```{r gauge-21-plus}
+gauge(
+  pct_21_plus,
+  min = 0,
+  max = 100,
+  symbol = "%",
+  gaugeSectors(
+    success = c(60, 100),
+    warning = c(30, 59.9),
+    danger  = c(0, 29.9)
+  )
+)
+```
+
+### Participants with average systolic blood pressure above 120 mm Hg
+
+```{r valuebox-sbp}
+valueBox(
+  value = paste0(pct_sbp_above_120, "%"),
+  icon = "fa-heartbeat",
+  color = "#D55E00"
+)
+```
