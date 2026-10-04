@@ -26,6 +26,11 @@ bios640-week4/
 │   ├── week3_nhanes_report.html
 │   ├── week3_nhanes_report.Rmd
 │   ├── week3_nhanes_report.pdf
+├── dashboard/
+│   ├── nhanes_dashboard.Rmd
+│   └── nhanes_dashboard.html
+├── figures/
+│   └── ex2_age_histogram.png, ex2_gender_bar.png, ...
 
 ```
 ## What each folder contains
